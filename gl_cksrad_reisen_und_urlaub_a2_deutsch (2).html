@@ -1,0 +1,935 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Glücksrad — Reisen und Urlaub (A2 Deutsch)</title>
+    <!-- FontAwesome & Canvas Confetti -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <style>
+        :root {
+            --bg-gradient: linear-gradient(135deg, #0f2027 0%, #203a43 50%, #2c5364 100%);
+            --glass-bg: rgba(255, 255, 255, 0.08);
+            --glass-border: rgba(255, 255, 255, 0.18);
+            --accent-gold: #f1c40f;
+            --correct-green: #2ecc71;
+            --wrong-red: #e74c3c;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+            background: var(--bg-gradient);
+            min-height: 100vh;
+            color: white;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: flex-start;
+            padding: 15px;
+            overflow-x: hidden;
+        }
+
+        /* Top HUD Navbar */
+        .hud-bar {
+            width: 100%;
+            max-width: 700px;
+            background: var(--glass-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 16px;
+            padding: 12px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+        }
+
+        .hud-item {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 16px;
+            font-weight: 600;
+        }
+
+        .hud-item i {
+            color: var(--accent-gold);
+            font-size: 18px;
+        }
+
+        .audio-toggle {
+            background: rgba(255, 255, 255, 0.12);
+            border: 1px solid var(--glass-border);
+            color: white;
+            padding: 8px 14px;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .audio-toggle:hover { background: rgba(255, 255, 255, 0.25); }
+
+        /* Wheel Area */
+        .game-area {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            position: relative;
+        }
+
+        .wheel-container {
+            position: relative;
+            width: min(90vw, 440px);
+            height: min(90vw, 440px);
+            margin: 10px 0;
+            filter: drop-shadow(0 15px 25px rgba(0,0,0,0.5));
+        }
+
+        .wheel {
+            width: 100%;
+            height: 100%;
+            transition: transform 4.5s cubic-bezier(0.15, 0.85, 0.15, 1);
+            transform-origin: center center;
+        }
+
+        .pointer {
+            position: absolute;
+            top: -18px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 0; height: 0;
+            border-left: 20px solid transparent;
+            border-right: 20px solid transparent;
+            border-top: 40px solid #e74c3c;
+            z-index: 30;
+            filter: drop-shadow(0 4px 6px rgba(0,0,0,0.6));
+        }
+
+        .spin-button {
+            margin-top: 20px;
+            padding: 16px 50px;
+            background: linear-gradient(135deg, #f1c40f, #e67e22);
+            border: none;
+            border-radius: 30px;
+            color: #1a252f;
+            font-size: 20px;
+            font-weight: 800;
+            letter-spacing: 1.5px;
+            cursor: pointer;
+            box-shadow: 0 8px 25px rgba(241, 196, 15, 0.4);
+            transition: all 0.3s ease;
+        }
+        .spin-button:hover:not(:disabled) {
+            transform: translateY(-2px) scale(1.03);
+            box-shadow: 0 12px 30px rgba(241, 196, 15, 0.6);
+        }
+        .spin-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .task-counter {
+            margin-top: 15px;
+            background: rgba(0, 0, 0, 0.4);
+            padding: 8px 20px;
+            border-radius: 20px;
+            border: 1px solid var(--glass-border);
+            font-size: 15px;
+            color: #e0e0e0;
+        }
+
+        /* Task Modal */
+        .modal-overlay {
+            display: none;
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.85);
+            backdrop-filter: blur(8px);
+            z-index: 200;
+            align-items: center;
+            justify-content: center;
+            padding: 15px;
+        }
+        .modal-overlay.active { display: flex; animation: fadeIn 0.3s ease; }
+
+        .modal-content {
+            background: #1a252f;
+            border: 2px solid var(--glass-border);
+            border-radius: 20px;
+            padding: 25px;
+            max-width: 600px;
+            width: 100%;
+            max-height: 90vh;
+            overflow-y: auto;
+            position: relative;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding-bottom: 10px;
+        }
+        .modal-title { color: var(--accent-gold); font-size: 22px; font-weight: 700; }
+
+        .modal-task-desc { background: rgba(255,255,255,0.05); border-radius: 10px; padding: 12px; font-size: 15px; margin-bottom: 20px; line-height: 1.5; }
+        .task-body { margin-bottom: 20px; }
+
+        /* Options & Inputs Styling */
+        .radio-opt {
+            background: rgba(255,255,255,0.07);
+            border: 2px solid rgba(255,255,255,0.15);
+            border-radius: 10px;
+            padding: 12px 16px;
+            margin-bottom: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .radio-opt:hover { background: rgba(255,255,255,0.15); }
+        .radio-opt.selected { background: rgba(52, 152, 219, 0.3); border-color: #3498db; }
+        .radio-opt.correct { background: rgba(46, 204, 113, 0.3) !important; border-color: #2ecc71 !important; }
+        .radio-opt.wrong { background: rgba(231, 76, 60, 0.3) !important; border-color: #e74c3c !important; }
+
+        .fill-blank {
+            display: inline-block;
+            min-width: 110px;
+            padding: 4px 10px;
+            background: rgba(0,0,0,0.4);
+            border: 2px dashed #3498db;
+            border-radius: 6px;
+            margin: 0 4px;
+            text-align: center;
+            font-weight: bold;
+            color: var(--accent-gold);
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+        .fill-blank.filled:hover {
+            border-color: #e74c3c;
+            background: rgba(231, 76, 60, 0.2);
+        }
+        .fill-blank.correct { background: rgba(46, 204, 113, 0.3) !important; border-color: #2ecc71 !important; border-style: solid; color: white; }
+        .fill-blank.wrong { background: rgba(231, 76, 60, 0.3) !important; border-color: #e74c3c !important; border-style: solid; color: white; }
+
+        .word-bank { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 15px; }
+        .word-item {
+            background: rgba(255,255,255,0.15);
+            border: 1px solid var(--glass-border);
+            border-radius: 8px;
+            padding: 8px 14px;
+            cursor: pointer;
+            user-select: none;
+            transition: all 0.2s ease;
+        }
+        .word-item:active { transform: scale(0.95); }
+        .word-item.used { opacity: 0.3; cursor: not-allowed; }
+        .word-item.correct { background: rgba(46, 204, 113, 0.4) !important; border-color: #2ecc71 !important; }
+        .word-item.wrong { background: rgba(231, 76, 60, 0.4) !important; border-color: #e74c3c !important; }
+
+        .order-item {
+            background: rgba(255,255,255,0.08);
+            border: 1px solid var(--glass-border);
+            border-radius: 8px;
+            padding: 10px 14px;
+            margin-bottom: 8px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        .order-item.correct { background: rgba(46, 204, 113, 0.3) !important; border-color: #2ecc71; }
+        .order-item.wrong { background: rgba(231, 76, 60, 0.3) !important; border-color: #e74c3c; }
+        .order-btns button {
+            padding: 4px 10px;
+            margin-left: 4px;
+            background: #2c3e50;
+            color: white;
+            border: 1px solid var(--glass-border);
+            border-radius: 6px;
+            cursor: pointer;
+        }
+
+        .sentence-builder {
+            min-height: 55px;
+            background: rgba(0,0,0,0.3);
+            border: 2px dashed rgba(255,255,255,0.2);
+            border-radius: 10px;
+            padding: 10px;
+            margin-bottom: 12px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            align-items: center;
+        }
+
+        /* Result Banner */
+        .result-banner {
+            display: none;
+            padding: 14px;
+            border-radius: 10px;
+            text-align: center;
+            font-size: 20px;
+            font-weight: 800;
+            letter-spacing: 1px;
+            margin-bottom: 15px;
+            animation: popIn 0.3s ease;
+        }
+        .result-banner.correct {
+            display: block;
+            background: rgba(46, 204, 113, 0.2);
+            border: 2px solid #2ecc71;
+            color: #2ecc71;
+        }
+        .result-banner.wrong {
+            display: block;
+            background: rgba(231, 76, 60, 0.2);
+            border: 2px solid #e74c3c;
+            color: #e74c3c;
+        }
+
+        .check-btn, .next-btn {
+            width: 100%;
+            padding: 14px;
+            border-radius: 10px;
+            font-weight: 800;
+            font-size: 16px;
+            cursor: pointer;
+            border: none;
+            transition: all 0.2s ease;
+        }
+        .check-btn { background: var(--accent-gold); color: #1a252f; }
+        .check-btn:hover { background: #f39c12; }
+        .next-btn { background: var(--correct-green); color: white; display: none; }
+        .next-btn:hover { background: #27ae60; }
+
+        /* Victory Screen Modal */
+        .victory-modal {
+            text-align: center;
+            padding: 10px;
+        }
+        .victory-icon {
+            font-size: 60px;
+            color: var(--accent-gold);
+            margin-bottom: 15px;
+            animation: bounce 1s infinite alternate;
+        }
+        .victory-title { font-size: 28px; color: white; margin-bottom: 10px; }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin: 20px 0;
+        }
+        .stat-card {
+            background: rgba(255,255,255,0.06);
+            border: 1px solid var(--glass-border);
+            border-radius: 12px;
+            padding: 12px;
+        }
+        .stat-value { font-size: 22px; font-weight: bold; color: var(--accent-gold); }
+        .stat-label { font-size: 13px; color: #aaa; }
+
+        .restart-btn {
+            background: linear-gradient(135deg, #2ecc71, #27ae60);
+            color: white;
+            border: none;
+            padding: 14px 30px;
+            border-radius: 30px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 10px;
+            box-shadow: 0 6px 20px rgba(46, 204, 113, 0.4);
+        }
+
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        @keyframes popIn { from { transform: scale(0.8); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+        @keyframes bounce { from { transform: translateY(0); } to { transform: translateY(-10px); } }
+    </style>
+</head>
+<body>
+
+    <!-- Top HUD Navigation Bar -->
+    <div class="hud-bar">
+        <div class="hud-item" title="Spielzeit">
+            <i class="fa-solid fa-stopwatch"></i>
+            <span id="timerDisplay">00:00</span>
+        </div>
+        <div class="hud-item" title="Ergebnis">
+            <i class="fa-solid fa-trophy"></i>
+            <span id="scoreDisplay">Punkte: 0</span>
+        </div>
+        <button class="audio-toggle" id="audioToggleBtn" onclick="toggleAudio()">
+            <i class="fa-solid fa-volume-high" id="audioIcon"></i>
+            <span id="audioStatusText">Ton An</span>
+        </button>
+    </div>
+
+    <!-- Main Wheel Container -->
+    <div class="game-area">
+        <div class="wheel-container">
+            <div class="pointer"></div>
+            <svg class="wheel" id="wheel" viewBox="0 0 500 500"></svg>
+        </div>
+        <button class="spin-button" id="spinButton" onclick="spinWheel()">DREHEN</button>
+        <div class="task-counter" id="counter">Erledigte Aufgaben: 0 / 8</div>
+    </div>
+
+    <!-- Task Modal -->
+    <div class="modal-overlay" id="modalOverlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title" id="modalTitle">Kategorie</h2>
+                <span style="font-size: 12px; background: rgba(255,255,255,0.1); padding: 4px 8px; border-radius: 6px;">A2 Deutsch</span>
+            </div>
+            <div class="modal-task-desc" id="modalTask">Aufgabenstellung</div>
+            <div class="task-body" id="taskContent"></div>
+            
+            <div class="result-banner" id="resultBanner"></div>
+
+            <button class="check-btn" id="checkBtn" onclick="checkAnswer()">PRÜFEN</button>
+            <button class="next-btn" id="nextBtn" onclick="closeModal()">WEITER</button>
+        </div>
+    </div>
+
+    <!-- Finish / Victory Modal -->
+    <div class="modal-overlay" id="victoryModal">
+        <div class="modal-content victory-modal">
+            <div class="victory-icon"><i class="fa-solid fa-award"></i></div>
+            <h2 class="victory-title">Gut gemacht!</h2>
+            <p style="color: #ccc;">Du hast alle Aufgaben abgeschlossen!</p>
+            
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <div class="stat-value" id="finalScore">0/8</div>
+                    <div class="stat-label">Richtig gelöst</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="finalAccuracy">0%</div>
+                    <div class="stat-label">Genauigkeit</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="finalTime">00:00</div>
+                    <div class="stat-label">Gesamtzeit</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="finalGrade">-</div>
+                    <div class="stat-label">Bewertung</div>
+                </div>
+            </div>
+
+            <button class="restart-btn" onclick="restartGame()"><i class="fa-solid fa-rotate-right"></i> ERNEUT SPIELEN</button>
+        </div>
+    </div>
+
+    <script>
+        function shuffleArray(array) {
+            const arr = [...array];
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
+        }
+
+        let audioEnabled = true;
+        let audioCtx = null;
+        let activeMelodyInterval = null;
+        let activeSirenInterval = null;
+
+        function getAudioContext() {
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
+            return audioCtx;
+        }
+
+        function toggleAudio() {
+            audioEnabled = !audioEnabled;
+            document.getElementById('audioIcon').className = audioEnabled ? "fa-solid fa-volume-high" : "fa-solid fa-volume-xmark";
+            document.getElementById('audioStatusText').textContent = audioEnabled ? "Ton An" : "Stumm";
+            if (!audioEnabled) {
+                stopChildrenMelody();
+                stopSirenSound();
+            }
+        }
+
+        function startChildrenMelody() {
+            if (!audioEnabled) return;
+            stopChildrenMelody();
+
+            const ctx = getAudioContext();
+            const tuneNotes = [
+                523.25, 659.25, 783.99, 1046.50,
+                880.00, 783.99, 659.25, 523.25,
+                587.33, 698.46, 880.00, 987.77,
+                1046.50, 880.00, 783.99, 523.25
+            ];
+            let noteIdx = 0;
+
+            activeMelodyInterval = setInterval(() => {
+                if (!audioEnabled) return;
+                try {
+                    const now = ctx.currentTime;
+                    const freq = tuneNotes[noteIdx % tuneNotes.length];
+                    noteIdx++;
+
+                    const osc = ctx.createOscillator();
+                    const gain = ctx.createGain();
+                    
+                    osc.type = 'triangle';
+                    osc.frequency.setValueAtTime(freq, now);
+
+                    gain.gain.setValueAtTime(0.12, now);
+                    gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+
+                    osc.connect(gain);
+                    gain.connect(ctx.destination);
+
+                    osc.start(now);
+                    osc.stop(now + 0.22);
+                } catch (e) {
+                    console.error(e);
+                }
+            }, 180);
+        }
+
+        function stopChildrenMelody() {
+            if (activeMelodyInterval) {
+                clearInterval(activeMelodyInterval);
+                activeMelodyInterval = null;
+            }
+        }
+
+        function stopSirenSound() {
+            if (activeSirenInterval) {
+                clearInterval(activeSirenInterval);
+                activeSirenInterval = null;
+            }
+        }
+
+        function playSound(type) {
+            if (!audioEnabled) return;
+            try {
+                const ctx = getAudioContext();
+                const now = ctx.currentTime;
+
+                if (type === 'correct') {
+                    const notes = [523.25, 659.25, 783.99, 1046.50];
+                    notes.forEach((freq, idx) => {
+                        const osc = ctx.createOscillator();
+                        const gain = ctx.createGain();
+                        osc.type = 'sine';
+                        osc.frequency.setValueAtTime(freq, now + idx * 0.08);
+                        gain.gain.setValueAtTime(0.2, now + idx * 0.08);
+                        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.08 + 0.25);
+                        osc.connect(gain); gain.connect(ctx.destination);
+                        osc.start(now + idx * 0.08);
+                        osc.stop(now + idx * 0.08 + 0.25);
+                    });
+                } else if (type === 'siren') {
+                    stopSirenSound();
+                    let up = true;
+                    let cycles = 0;
+                    activeSirenInterval = setInterval(() => {
+                        if (!audioEnabled) { stopSirenSound(); return; }
+                        try {
+                            const sNow = ctx.currentTime;
+                            const osc = ctx.createOscillator();
+                            const gain = ctx.createGain();
+                            osc.type = 'sawtooth';
+                            
+                            if (up) {
+                                osc.frequency.setValueAtTime(450, sNow);
+                                osc.frequency.linearRampToValueAtTime(850, sNow + 0.35);
+                            } else {
+                                osc.frequency.setValueAtTime(850, sNow);
+                                osc.frequency.linearRampToValueAtTime(450, sNow + 0.35);
+                            }
+                            up = !up;
+
+                            gain.gain.setValueAtTime(0.18, sNow);
+                            gain.gain.linearRampToValueAtTime(0.01, sNow + 0.35);
+
+                            osc.connect(gain);
+                            gain.connect(ctx.destination);
+                            osc.start(sNow);
+                            osc.stop(sNow + 0.35);
+
+                            cycles++;
+                            if (cycles >= 4) {
+                                stopSirenSound();
+                            }
+                        } catch (err) {
+                            stopSirenSound();
+                        }
+                    }, 360);
+                } else if (type === 'win') {
+                    const freqs = [440, 554.37, 659.25, 880];
+                    freqs.forEach((freq, idx) => {
+                        const osc = ctx.createOscillator();
+                        const gain = ctx.createGain();
+                        osc.type = 'triangle';
+                        osc.frequency.setValueAtTime(freq, now + idx * 0.12);
+                        gain.gain.setValueAtTime(0.25, now + idx * 0.12);
+                        gain.gain.exponentialRampToValueAtTime(0.001, now + idx * 0.12 + 0.4);
+                        osc.connect(gain); gain.connect(ctx.destination);
+                        osc.start(now + idx * 0.12);
+                        osc.stop(now + idx * 0.12 + 0.4);
+                    });
+                }
+            } catch (e) { console.error(e); }
+        }
+
+        let timerSeconds = 0;
+        let timerInterval = null;
+
+        function startTimer() {
+            if (timerInterval) clearInterval(timerInterval);
+            timerSeconds = 0;
+            document.getElementById('timerDisplay').textContent = "00:00";
+            timerInterval = setInterval(() => {
+                timerSeconds++;
+                const mins = String(Math.floor(timerSeconds / 60)).padStart(2, '0');
+                const secs = String(timerSeconds % 60).padStart(2, '0');
+                document.getElementById('timerDisplay').textContent = `${mins}:${secs}`;
+            }, 1000);
+        }
+
+        const initialSectors = [
+            { id: 1, label: 'Wortschatz', color: '#3498db', type: 'radio', task: 'Was passt NICHT zum Thema "Reisevorbereitung"?', options: ['eine Fahrkarte kaufen', 'den Koffer packen', 'ein Hotelzimmer buchen', 'den Rasen mähen'], correctText: 'den Rasen mähen', completed: false },
+            { id: 2, label: 'Verben', color: '#2ecc71', type: 'fill-blanks', task: 'Setze die passenden Verben ein:', sentences: [{ text: '1. Ich muss eine Fahrkarte ___', ans: 'kaufen' }, { text: '2. Ein Zimmer im Hotel ___', ans: 'reservieren' }, { text: '3. In den Zug ___', ans: 'einsteigen' }, { text: '4. Den Koffer ___', ans: 'packen' }], words: ['kaufen', 'reservieren', 'einsteigen', 'packen'], completed: false },
+            { id: 3, label: 'Reihenfolge', color: '#f1c40f', type: 'drag-order', task: 'Bringe die Reisephasen in die richtige Reihenfolge (1 bis 6):', items: ['Das Reiseziel auswählen', 'Das Zugticket online buchen', 'Den Koffer sorgfältig packen', 'Pünktlich zum Bahnhof fahren', 'In den Zug einsteigen', 'Im Hotel am Zielort ankommen'], correctOrder: [0, 1, 2, 3, 4, 5], completed: false },
+            { id: 4, label: 'Kategorie', color: '#e67e22', type: 'radio', task: 'Wo macht man das? → [die Sehenswürdigkeiten besichtigen]', options: ['Am Bahnhofsschalter', 'In der Zielstadt / im Urlaubsort', 'Im Zugabteil', 'An der Hotelrezeption'], correctText: 'In der Zielstadt / im Urlaubsort', completed: false },
+            { id: 5, label: 'Kollokationen', color: '#e74c3c', type: 'radio', task: 'Welches Verb passt zum Nomen "eine Fahrkarte"?', options: ['trinken', 'entwerten / kaufen', 'anrufen', 'schlafen'], correctText: 'entwerten / kaufen', completed: false },
+            { id: 6, label: 'Dialog', color: '#9b59b6', type: 'fill-blanks', task: 'Ergänze den Dialog am Fahrkartenschalter:', sentences: [{ text: '— Guten Tag! Ich möchte eine Fahrkarte nach Berlin ___ .', ans: 'kaufen' }, { text: '— ___ oder hin und zurück?', ans: 'Einfach' }, { text: '— Einfach, bitte. Von welchem ___ fährt der Zug ab?', ans: 'Gleis' }, { text: '— Der Zug fährt pünktlich von Gleis 4 ___ .', ans: 'ab' }], words: ['kaufen', 'Einfach', 'Gleis', 'ab'], completed: false },
+            { id: 7, label: 'Grammatik', color: '#1abc9c', type: 'fill-blanks', task: 'Ergänze Präpositionen und Artikel:', sentences: [{ text: '1. Wir fahren im Sommer ___ Ostsee.', ans: 'an die' }, { text: '2. Gestern sind wir ___ Zug gefahren.', ans: 'mit dem' }, { text: '3. Wir übernachten ___ Hotel.', ans: 'in einem' }, { text: '4. Ich warte schon ___ Bahnsteig.', ans: 'am' }], words: ['an die', 'mit dem', 'in einem', 'am'], completed: false },
+            { 
+                id: 8, 
+                label: 'Satzbau', 
+                color: '#ff6b9d', 
+                type: 'sentence-builder', 
+                task: 'Bilde den korrekten Satz im Perfekt:', 
+                validSentences: [
+                    'Wir sind in Berlin pünktlich gestern gekommen.',
+                    'Wir sind in Berlin gestern pünktlich gekommen.',
+                    'Wir sind gestern in Berlin pünktlich gekommen.',
+                    'Wir sind gestern pünktlich in Berlin gekommen.',
+                    'Wir sind pünktlich gestern in Berlin gekommen.',
+                    'Wir sind pünktlich in Berlin gestern gekommen.',
+                    'Wir sind gestern pünktlich in Berlin angekommen.'
+                ],
+                words: ['Wir', 'sind', 'gestern', 'pünktlich', 'in', 'Berlin', 'gekommen'], 
+                completed: false 
+            }
+        ];
+
+        let sectors = JSON.parse(JSON.stringify(initialSectors));
+        let currentRotation = 0, currentSector = null, userAnswer = null, taskChecked = false;
+        let userOrder = [], currentRadioCorrectIndex = null, correctAnswersCount = 0;
+
+        function createWheel() {
+            const svg = document.getElementById('wheel');
+            let content = '';
+            for (let i = 0; i < 8; i++) {
+                const startAngle = i * 45 - 90, endAngle = (i + 1) * 45 - 90;
+                const x1 = 250 + 230 * Math.cos(startAngle * Math.PI / 180), y1 = 250 + 230 * Math.sin(startAngle * Math.PI / 180);
+                const x2 = 250 + 230 * Math.cos(endAngle * Math.PI / 180), y2 = 250 + 230 * Math.sin(endAngle * Math.PI / 180);
+                const color = sectors[i].completed ? '#555555' : sectors[i].color;
+                content += `<path d="M 250 250 L ${x1} ${y1} A 230 230 0 0 1 ${x2} ${y2} Z" fill="${color}" stroke="#0f2027" stroke-width="3"/>`;
+                
+                const midRad = ((startAngle + endAngle) / 2) * Math.PI / 180;
+                const tx = 250 + 150 * Math.cos(midRad), ty = 250 + 150 * Math.sin(midRad);
+                content += `<text x="${tx}" y="${ty}" fill="white" font-size="13" font-weight="bold" text-anchor="middle" dominant-baseline="middle" transform="rotate(${((startAngle + endAngle) / 2) + 90}, ${tx}, ${ty})">${sectors[i].label}</text>`;
+            }
+            content += `<circle cx="250" cy="250" r="30" fill="#f1c40f" stroke="#d35400" stroke-width="3"/>`;
+            svg.innerHTML = content;
+        }
+
+        function spinWheel() {
+            getAudioContext();
+            const available = sectors.filter(s => !s.completed);
+            if (!available.length) return;
+
+            document.getElementById('spinButton').disabled = true;
+            const target = available[Math.floor(Math.random() * available.length)];
+            const idx = sectors.indexOf(target);
+            const targetAngle = 360 - (idx * 45 + 22.5);
+            
+            const rounds = 5;
+            const totalDegToSpin = (rounds * 360) + targetAngle - (currentRotation % 360);
+            currentRotation += totalDegToSpin;
+
+            startChildrenMelody();
+
+            document.getElementById('wheel').style.transform = `rotate(${currentRotation}deg)`;
+            setTimeout(() => {
+                stopChildrenMelody();
+                openTask(target);
+            }, 4500);
+        }
+
+        function openTask(sector) {
+            currentSector = sector; userAnswer = null; taskChecked = false;
+            document.getElementById('modalTitle').textContent = sector.label;
+            document.getElementById('modalTask').textContent = sector.task;
+            
+            const banner = document.getElementById('resultBanner');
+            banner.style.display = 'none';
+            banner.className = 'result-banner';
+
+            document.getElementById('checkBtn').style.display = 'block';
+            document.getElementById('nextBtn').style.display = 'none';
+            renderTask(sector);
+            document.getElementById('modalOverlay').classList.add('active');
+        }
+
+        function renderTask(sector) {
+            const container = document.getElementById('taskContent');
+            container.innerHTML = '';
+
+            if (sector.type === 'radio') {
+                const shuffledOpts = shuffleArray(sector.options);
+                currentRadioCorrectIndex = shuffledOpts.indexOf(sector.correctText);
+
+                shuffledOpts.forEach((optText, idx) => {
+                    const div = document.createElement('div');
+                    div.className = 'radio-opt';
+                    div.textContent = `${idx + 1}. ${optText}`;
+                    div.onclick = () => {
+                        if (taskChecked) return;
+                        document.querySelectorAll('.radio-opt').forEach(el => el.classList.remove('selected'));
+                        div.classList.add('selected');
+                        userAnswer = idx;
+                    };
+                    container.appendChild(div);
+                });
+            } else if (sector.type === 'fill-blanks') {
+                userAnswer = new Array(sector.sentences.length).fill(null);
+                const shuffledWords = shuffleArray(sector.words);
+
+                sector.sentences.forEach((s, idx) => {
+                    const div = document.createElement('div');
+                    div.style.marginBottom = '12px';
+                    div.innerHTML = s.text.replace('___', `<span class="fill-blank" data-idx="${idx}">___</span>`);
+                    container.appendChild(div);
+                });
+
+                const bank = document.createElement('div'); 
+                bank.className = 'word-bank';
+                
+                shuffledWords.forEach(w => {
+                    const item = document.createElement('div'); 
+                    item.className = 'word-item'; 
+                    item.textContent = w;
+                    item.dataset.word = w;
+
+                    item.onclick = () => {
+                        if (taskChecked || item.classList.contains('used')) return;
+                        const emptyIdx = userAnswer.findIndex(v => v === null);
+                        if (emptyIdx !== -1) {
+                            userAnswer[emptyIdx] = w; 
+                            item.classList.add('used');
+                            const blank = document.querySelector(`.fill-blank[data-idx="${emptyIdx}"]`);
+                            blank.textContent = w;
+                            blank.classList.add('filled');
+                        }
+                    };
+                    bank.appendChild(item);
+                });
+                container.appendChild(bank);
+
+                container.querySelectorAll('.fill-blank').forEach(blank => {
+                    blank.onclick = () => {
+                        if (taskChecked) return;
+                        const idx = parseInt(blank.dataset.idx);
+                        const wordToRemove = userAnswer[idx];
+                        if (wordToRemove !== null) {
+                            userAnswer[idx] = null;
+                            blank.textContent = '___';
+                            blank.classList.remove('filled');
+
+                            const wordItem = Array.from(bank.children).find(el => el.dataset.word === wordToRemove && el.classList.contains('used'));
+                            if (wordItem) {
+                                wordItem.classList.remove('used');
+                            }
+                        }
+                    };
+                });
+            } else if (sector.type === 'drag-order') {
+                let shuffledItems = [];
+                do {
+                    shuffledItems = sector.items.map((item, idx) => ({ item, originalIdx: idx })).sort(() => Math.random() - 0.5);
+                } while (JSON.stringify(shuffledItems.map(o => o.originalIdx)) === JSON.stringify(sector.correctOrder));
+                
+                userOrder = shuffledItems;
+                renderDragOrderItems(container);
+            } else if (sector.type === 'sentence-builder') {
+                userAnswer = [];
+                const builder = document.createElement('div'); builder.className = 'sentence-builder'; builder.id = 'builder';
+                const bank = document.createElement('div'); bank.className = 'word-bank';
+                
+                const shuffledWords = shuffleArray(sector.words);
+                shuffledWords.forEach((w) => {
+                    const item = document.createElement('div'); item.className = 'word-item'; item.textContent = w;
+                    item.onclick = () => {
+                        if (taskChecked || item.classList.contains('used')) return;
+                        item.classList.add('used');
+                        const wordEl = document.createElement('div'); wordEl.className = 'word-item'; wordEl.textContent = w;
+                        wordEl.onclick = () => { if (taskChecked) return; wordEl.remove(); item.classList.remove('used'); };
+                        builder.appendChild(wordEl);
+                    };
+                    bank.appendChild(item);
+                });
+                container.appendChild(builder); container.appendChild(bank);
+            }
+        }
+
+        function renderDragOrderItems(container) {
+            container.innerHTML = '';
+            userOrder.forEach((obj, idx) => {
+                const div = document.createElement('div');
+                div.className = 'order-item';
+                div.innerHTML = `<span>${idx + 1}. ${obj.item}</span>
+                    <div class="order-btns">
+                        <button onclick="moveOrderItem(${idx}, -1)">▲</button>
+                        <button onclick="moveOrderItem(${idx}, 1)">▼</button>
+                    </div>`;
+                container.appendChild(div);
+            });
+        }
+
+        function moveOrderItem(idx, direction) {
+            if (taskChecked) return;
+            const targetIdx = idx + direction;
+            if (targetIdx < 0 || targetIdx >= userOrder.length) return;
+            const temp = userOrder[idx];
+            userOrder[idx] = userOrder[targetIdx];
+            userOrder[targetIdx] = temp;
+            renderDragOrderItems(document.getElementById('taskContent'));
+        }
+
+        function checkAnswer() {
+            if (taskChecked) return;
+            taskChecked = true;
+            let isCorrect = false;
+
+            if (currentSector.type === 'radio') {
+                isCorrect = (userAnswer === currentRadioCorrectIndex);
+                document.querySelectorAll('.radio-opt').forEach((el, idx) => {
+                    if (idx === currentRadioCorrectIndex) el.classList.add('correct');
+                    else if (idx === userAnswer) el.classList.add('wrong');
+                });
+            } else if (currentSector.type === 'fill-blanks') {
+                isCorrect = true;
+                currentSector.sentences.forEach((s, idx) => {
+                    const blank = document.querySelector(`.fill-blank[data-idx="${idx}"]`);
+                    blank.classList.remove('filled');
+                    if (userAnswer[idx] === s.ans) blank.classList.add('correct');
+                    else { isCorrect = false; blank.classList.add('wrong'); }
+                });
+            } else if (currentSector.type === 'drag-order') {
+                const currentIndices = userOrder.map(o => o.originalIdx);
+                isCorrect = JSON.stringify(currentIndices) === JSON.stringify(currentSector.correctOrder);
+                document.querySelectorAll('.order-item').forEach((el, idx) => {
+                    if (currentIndices[idx] === currentSector.correctOrder[idx]) el.classList.add('correct');
+                    else el.classList.add('wrong');
+                });
+            } else if (currentSector.type === 'sentence-builder') {
+                const built = Array.from(document.querySelectorAll('#builder .word-item')).map(e => e.textContent).join(' ');
+                const normalize = (str) => str.replace(/[.,\/#!$%\^&\*;:{}=\-_`~()]/g, "").replace(/\s+/g, " ").trim().toLowerCase();
+                
+                const normalizedBuilt = normalize(built);
+                isCorrect = currentSector.validSentences.some(v => normalize(v) === normalizedBuilt);
+                
+                const builtWordEls = document.querySelectorAll('#builder .word-item');
+                builtWordEls.forEach(el => {
+                    el.classList.add(isCorrect ? 'correct' : 'wrong');
+                });
+            }
+
+            const banner = document.getElementById('resultBanner');
+            if (isCorrect) {
+                correctAnswersCount++;
+                playSound('correct');
+                banner.innerHTML = `<i class="fa-solid fa-circle-check"></i> RICHTIG! (+1 Punkt)`;
+                banner.className = 'result-banner correct';
+            } else {
+                playSound('siren');
+                banner.innerHTML = `<i class="fa-solid fa-circle-xmark"></i> FALSCH!`;
+                banner.className = 'result-banner wrong';
+            }
+
+            currentSector.completed = true;
+            document.getElementById('scoreDisplay').textContent = `Punkte: ${correctAnswersCount}`;
+            document.getElementById('counter').textContent = `Erledigte Aufgaben: ${sectors.filter(s => s.completed).length} / 8`;
+            createWheel();
+
+            document.getElementById('checkBtn').style.display = 'none';
+            document.getElementById('nextBtn').style.display = 'block';
+        }
+
+        function closeModal() {
+            document.getElementById('modalOverlay').classList.remove('active');
+            document.getElementById('spinButton').disabled = false;
+
+            if (sectors.every(s => s.completed)) {
+                finishGame();
+            }
+        }
+
+        function finishGame() {
+            clearInterval(timerInterval);
+            playSound('win');
+
+            if (typeof confetti === 'function') {
+                confetti({
+                    particleCount: 120,
+                    spread: 80,
+                    origin: { y: 0.6 }
+                });
+            }
+
+            const accuracy = Math.round((correctAnswersCount / 8) * 100);
+            document.getElementById('finalScore').textContent = `${correctAnswersCount} / 8`;
+            document.getElementById('finalAccuracy').textContent = `${accuracy}%`;
+            document.getElementById('finalTime').textContent = document.getElementById('timerDisplay').textContent;
+
+            let grade = "Sehr gut!";
+            if (accuracy < 50) grade = "Mehr üben!";
+            else if (accuracy < 80) grade = "Gut!";
+            document.getElementById('finalGrade').textContent = grade;
+
+            document.getElementById('victoryModal').classList.add('active');
+        }
+
+        function restartGame() {
+            sectors = JSON.parse(JSON.stringify(initialSectors));
+            correctAnswersCount = 0;
+            currentRotation = 0;
+            document.getElementById('scoreDisplay').textContent = `Punkte: 0`;
+            document.getElementById('counter').textContent = `Erledigte Aufgaben: 0 / 8`;
+            document.getElementById('victoryModal').classList.remove('active');
+            document.getElementById('spinButton').disabled = false;
+            createWheel();
+            startTimer();
+        }
+
+        createWheel();
+        startTimer();
+    </script>
+</body>
+</html>
